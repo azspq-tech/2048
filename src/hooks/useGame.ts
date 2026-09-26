@@ -16,6 +16,206 @@ export interface TileInfo {
 let tileIdCounter = 0;
 const nextId = () => ++tileIdCounter;
 
+// ============================================================================
+// CORE 1D ROW ALGORITHM
+// ============================================================================
+
+/**
+ * Pure function: Slide and merge a single row to the left.
+ * 
+ * Step A (Filter/Compress): Remove all zeros, shifting numbers toward index 0.
+ * Step B (Sequential Pairwise Merge): 
+ *   - Iterate left to right: if adjacent tiles match, combine them (arr[i] * 2)
+ *   - Add merged value to score
+ *   - Skip next index (non-greedy: merged tile cannot merge again)
+ *   - Example: [2, 2, 2, 2] -> [4, 4, 0, 0]
+ * Step C (Pad): Re-compress and append zeros until array length is 4.
+ * 
+ * @param row - Array of numbers (length 4)
+ * @returns Object with newRow, score gained, and whether any merge occurred
+ */
+function slideRow(row: number[]): { newRow: number[]; score: number; merged: boolean } {
+  const size = row.length;
+  
+  // Step A: Filter/Compress - remove all zeros
+  const filtered = row.filter(val => val !== 0);
+  
+  // Step B: Sequential Pairwise Merge
+  const merged: number[] = [];
+  let score = 0;
+  let anyMerged = false;
+  let i = 0;
+  
+  while (i < filtered.length) {
+    // Check if current and next tile match
+    if (i + 1 < filtered.length && filtered[i] === filtered[i + 1]) {
+      // Merge: combine into single tile
+      const mergedValue = filtered[i] * 2;
+      merged.push(mergedValue);
+      score += mergedValue;
+      anyMerged = true;
+      // Skip next index (non-greedy rule)
+      i += 2;
+    } else {
+      // No merge: keep current tile
+      merged.push(filtered[i]);
+      i++;
+    }
+  }
+  
+  // Step C: Pad - append zeros until length is 4
+  const newRow = [...merged];
+  while (newRow.length < size) {
+    newRow.push(0);
+  }
+  
+  return { newRow, score, merged: anyMerged };
+}
+
+// ============================================================================
+// GRID TRANSFORMATION HELPERS
+// ============================================================================
+
+/**
+ * Transpose the grid (swap rows and columns)
+ * Used for UP/DOWN movements
+ */
+function transpose(grid: Grid): Grid {
+  const size = grid.length;
+  const transposed = createEmptyGrid(size);
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      transposed[c][r] = grid[r][c];
+    }
+  }
+  return transposed;
+}
+
+/**
+ * Reverse each row in the grid
+ * Used for RIGHT/DOWN movements
+ */
+function reverseRows(grid: Grid): Grid {
+  return grid.map(row => [...row].reverse());
+}
+
+// ============================================================================
+// 4-DIRECTION MOVEMENT
+// ============================================================================
+
+/**
+ * Move the entire board in the specified direction.
+ * 
+ * Strategy: Normalize all directions to "slide left" using transformations:
+ * - LEFT: Apply slideRow directly to every row
+ * - RIGHT: Reverse each row → slide left → reverse back
+ * - UP: Transpose → slide left → transpose back
+ * - DOWN: Transpose → reverse rows → slide left → reverse back → transpose back
+ * 
+ * @param grid - Current game board
+ * @param direction - Direction to move (up/down/left/right)
+ * @returns Object with new grid, score gained, whether board changed, and if any merge occurred
+ */
+function moveBoard(grid: Grid, direction: Direction): { 
+  grid: Grid; 
+  score: number; 
+  moved: boolean; 
+  merged: boolean 
+} {
+  let workingGrid = grid;
+  let totalScore = 0;
+  let anyMerged = false;
+  
+  // Transform based on direction
+  switch (direction) {
+    case 'left':
+      // Direct: apply slideRow to each row
+      workingGrid = grid.map(row => {
+        const result = slideRow(row);
+        totalScore += result.score;
+        if (result.merged) anyMerged = true;
+        return result.newRow;
+      });
+      break;
+      
+    case 'right':
+      // Reverse → slide left → reverse back
+      workingGrid = reverseRows(grid);
+      workingGrid = workingGrid.map(row => {
+        const result = slideRow(row);
+        totalScore += result.score;
+        if (result.merged) anyMerged = true;
+        return result.newRow;
+      });
+      workingGrid = reverseRows(workingGrid);
+      break;
+      
+    case 'up':
+      // Transpose → slide left → transpose back
+      workingGrid = transpose(grid);
+      workingGrid = workingGrid.map(row => {
+        const result = slideRow(row);
+        totalScore += result.score;
+        if (result.merged) anyMerged = true;
+        return result.newRow;
+      });
+      workingGrid = transpose(workingGrid);
+      break;
+      
+    case 'down':
+      // Transpose → reverse → slide left → reverse back → transpose back
+      workingGrid = transpose(grid);
+      workingGrid = reverseRows(workingGrid);
+      workingGrid = workingGrid.map(row => {
+        const result = slideRow(row);
+        totalScore += result.score;
+        if (result.merged) anyMerged = true;
+        return result.newRow;
+      });
+      workingGrid = reverseRows(workingGrid);
+      workingGrid = transpose(workingGrid);
+      break;
+  }
+  
+  // Check if board actually changed
+  const moved = JSON.stringify(workingGrid) !== JSON.stringify(grid);
+  
+  return { grid: workingGrid, score: totalScore, moved, merged: anyMerged };
+}
+
+// ============================================================================
+// TILE SPAWNING
+// ============================================================================
+
+/**
+ * Spawn a new tile on the board.
+ * 90% chance of 2, 10% chance of 4.
+ * 
+ * @param grid - Current game board
+ * @returns Object with new grid and position where tile was spawned (or null if no empty cells)
+ */
+function spawnTile(grid: Grid): { grid: Grid; pos: [number, number] | null } {
+  const newGrid = grid.map(row => [...row]);
+  const emptyCells = getEmptyCells(newGrid);
+  
+  if (emptyCells.length === 0) {
+    return { grid: newGrid, pos: null };
+  }
+  
+  // Pick random empty cell
+  const pos = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+  
+  // 90% chance of 2, 10% chance of 4
+  const value = Math.random() < 0.9 ? 2 : 4;
+  newGrid[pos[0]][pos[1]] = value;
+  
+  return { grid: newGrid, pos };
+}
+
+// ============================================================================
+// GAME STATE HELPERS
+// ============================================================================
+
 function createEmptyGrid(size: number): Grid {
   return Array.from({ length: size }, () => Array(size).fill(0));
 }
@@ -30,151 +230,13 @@ function getEmptyCells(grid: Grid): [number, number][] {
   return cells;
 }
 
-function addRandomTile(grid: Grid): { grid: Grid; pos: [number, number] | null } {
-  const newGrid = grid.map(row => [...row]);
-  const empty = getEmptyCells(newGrid);
-  if (empty.length === 0) return { grid: newGrid, pos: null };
-  const pos = empty[Math.floor(Math.random() * empty.length)];
-  newGrid[pos[0]][pos[1]] = Math.random() < 0.9 ? 2 : 4;
-  return { grid: newGrid, pos };
-}
-
-// Rotate grid clockwise
-function rotateClockwise(grid: Grid): Grid {
-  const size = grid.length;
-  const rotated = createEmptyGrid(size);
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      rotated[c][size - 1 - r] = grid[r][c];
-    }
-  }
-  return rotated;
-}
-
-// Rotate grid counter-clockwise
-function rotateCounterClockwise(grid: Grid): Grid {
-  const size = grid.length;
-  const rotated = createEmptyGrid(size);
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      rotated[size - 1 - c][r] = grid[r][c];
-    }
-  }
-  return rotated;
-}
-
-// Slide and merge a single row to the left
-function slideRowLeft(row: number[]): { newRow: number[]; score: number; merged: boolean } {
-  const size = row.length;
-  const newRow = Array(size).fill(0);
-  let score = 0;
-  let merged = false;
-  let writePos = 0;
-  let previous: number | null = null;
-
-  for (let i = 0; i < size; i++) {
-    if (row[i] !== 0) {
-      if (previous === null) {
-        previous = row[i];
-      } else {
-        if (previous === row[i]) {
-          // Merge
-          newRow[writePos] = previous * 2;
-          score += previous * 2;
-          merged = true;
-          writePos++;
-          previous = null;
-        } else {
-          // No merge, write previous and start new
-          newRow[writePos] = previous;
-          writePos++;
-          previous = row[i];
-        }
-      }
-    }
-  }
-
-  // Write any remaining tile
-  if (previous !== null) {
-    newRow[writePos] = previous;
-  }
-
-  return { newRow, score, merged };
-}
-
-// Slide entire grid to the left
-function slideGridLeft(grid: Grid): { grid: Grid; score: number; merged: boolean } {
-  let totalScore = 0;
-  let anyMerged = false;
-  const newGrid = grid.map(row => {
-    const result = slideRowLeft(row);
-    totalScore += result.score;
-    if (result.merged) anyMerged = true;
-    return result.newRow;
-  });
-
-  return { grid: newGrid, score: totalScore, merged: anyMerged };
-}
-
-// Move in any direction using rotation strategy
-function move(grid: Grid, direction: Direction): { grid: Grid; score: number; moved: boolean; merged: boolean } {
-  let rotated = grid;
-  
-  // Rotate to make the desired direction become "left"
-  // left: 0 rotations
-  // up: rotate clockwise 1 time
-  // right: rotate clockwise 2 times
-  // down: rotate clockwise 3 times
-  const rotationsNeeded: Record<Direction, number> = {
-    left: 0,
-    up: 1,
-    right: 2,
-    down: 3
-  };
-  
-  const times = rotationsNeeded[direction];
-  
-  // Rotate clockwise
-  for (let i = 0; i < times; i++) {
-    rotated = rotateClockwise(rotated);
-  }
-
-  // Slide left
-  const result = slideGridLeft(rotated);
-  let finalGrid = result.grid;
-
-  // Rotate back counter-clockwise
-  for (let i = 0; i < times; i++) {
-    finalGrid = rotateCounterClockwise(finalGrid);
-  }
-
-  // Check if anything moved
-  const moved = JSON.stringify(finalGrid) !== JSON.stringify(grid);
-
-  return { grid: finalGrid, score: result.score, moved, merged: result.merged };
-}
-
-function canMove(grid: Grid): boolean {
-  const size = grid.length;
-  // Check for empty cells
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      if (grid[r][c] === 0) return true;
-    }
-  }
-  // Check for possible merges
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      const val = grid[r][c];
-      // Check right neighbor
-      if (c + 1 < size && grid[r][c + 1] === val) return true;
-      // Check bottom neighbor
-      if (r + 1 < size && grid[r + 1][c] === val) return true;
-    }
-  }
-  return false;
-}
-
+/**
+ * Check if the player has won (reached target value).
+ * 
+ * @param grid - Current game board
+ * @param target - Target value to win (default 2048)
+ * @returns true if any tile >= target
+ */
 function hasWon(grid: Grid, target: number): boolean {
   for (const row of grid) {
     for (const cell of row) {
@@ -182,6 +244,38 @@ function hasWon(grid: Grid, target: number): boolean {
     }
   }
   return false;
+}
+
+/**
+ * Check if the game is over.
+ * Game over if: zero empty cells AND no adjacent matching tiles.
+ * 
+ * @param grid - Current game board
+ * @returns true if no valid moves remain
+ */
+function isGameOver(grid: Grid): boolean {
+  const size = grid.length;
+  
+  // Check for empty cells
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (grid[r][c] === 0) return false; // Empty cell exists, game not over
+    }
+  }
+  
+  // Check for possible merges (horizontal and vertical)
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const val = grid[r][c];
+      // Check right neighbor
+      if (c + 1 < size && grid[r][c + 1] === val) return false;
+      // Check bottom neighbor
+      if (r + 1 < size && grid[r + 1][c] === val) return false;
+    }
+  }
+  
+  // No empty cells and no possible merges
+  return true;
 }
 
 function computeTiles(grid: Grid, prevGrid: Grid): TileInfo[] {
@@ -206,6 +300,10 @@ function computeTiles(grid: Grid, prevGrid: Grid): TileInfo[] {
   return tiles;
 }
 
+// ============================================================================
+// GAME STATE HOOK
+// ============================================================================
+
 interface GameState {
   grid: Grid;
   score: number;
@@ -224,12 +322,14 @@ export function useGame(initialSize = 4) {
   const [state, setState] = useState<GameState>(() => {
     const saved = localStorage.getItem('2048_highscore');
     const highScore = saved ? parseInt(saved, 10) : 0;
+    
+    // Initialize with 2 random tiles
     let grid = createEmptyGrid(initialSize);
-    const r1 = addRandomTile(grid);
-    grid = r1.grid;
-    const r2 = addRandomTile(grid);
-    grid = r2.grid;
+    grid = spawnTile(grid).grid;
+    grid = spawnTile(grid).grid;
+    
     gridRef.current = grid;
+    
     return {
       grid,
       score: 0,
@@ -247,20 +347,27 @@ export function useGame(initialSize = 4) {
     setState(prev => {
       if (prev.status !== 'playing') return prev;
 
-      const result = move(prev.grid, direction);
+      // Execute move
+      const result = moveBoard(prev.grid, direction);
+      
+      // Move validation: if board didn't change, move is invalid
       if (!result.moved) return prev;
 
-      const { grid: newGrid } = addRandomTile(result.grid);
+      // Valid move: spawn new tile
+      const { grid: newGrid } = spawnTile(result.grid);
       const newScore = prev.score + result.score;
       const newHighScore = Math.max(newScore, prev.highScore);
 
+      // Update high score in localStorage
       if (newHighScore > prev.highScore) {
         localStorage.setItem('2048_highscore', String(newHighScore));
       }
 
+      // Check win/lose conditions
       const won = hasWon(newGrid, prev.targetValue);
-      const lost = !canMove(newGrid);
+      const lost = isGameOver(newGrid);
 
+      // Compute tile info for rendering
       const tiles = computeTiles(newGrid, prev.grid);
       gridRef.current = newGrid;
 
@@ -280,12 +387,13 @@ export function useGame(initialSize = 4) {
   const restart = useCallback((size?: number) => {
     tileIdCounter = 0;
     const gridSize = size || state.gridSize;
+    
     let grid = createEmptyGrid(gridSize);
-    const r1 = addRandomTile(grid);
-    grid = r1.grid;
-    const r2 = addRandomTile(grid);
-    grid = r2.grid;
+    grid = spawnTile(grid).grid;
+    grid = spawnTile(grid).grid;
+    
     gridRef.current = grid;
+    
     setState(prev => ({
       ...prev,
       grid,
