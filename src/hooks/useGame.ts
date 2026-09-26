@@ -39,7 +39,8 @@ function addRandomTile(grid: Grid): { grid: Grid; pos: [number, number] | null }
   return { grid: newGrid, pos };
 }
 
-function rotateGrid(grid: Grid): Grid {
+// Rotate grid clockwise
+function rotateClockwise(grid: Grid): Grid {
   const size = grid.length;
   const rotated = createEmptyGrid(size);
   for (let r = 0; r < size; r++) {
@@ -50,59 +51,104 @@ function rotateGrid(grid: Grid): Grid {
   return rotated;
 }
 
-function slideLeft(grid: Grid): { grid: Grid; score: number; merged: boolean; mergedPositions: Set<string> } {
+// Rotate grid counter-clockwise
+function rotateCounterClockwise(grid: Grid): Grid {
   const size = grid.length;
+  const rotated = createEmptyGrid(size);
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      rotated[size - 1 - c][r] = grid[r][c];
+    }
+  }
+  return rotated;
+}
+
+// Slide and merge a single row to the left
+function slideRowLeft(row: number[]): { newRow: number[]; score: number; merged: boolean } {
+  const size = row.length;
+  const newRow = Array(size).fill(0);
   let score = 0;
   let merged = false;
-  const newGrid = createEmptyGrid(size);
-  const mergedPositions = new Set<string>();
+  let writePos = 0;
+  let previous: number | null = null;
 
-  for (let r = 0; r < size; r++) {
-    const row = grid[r].filter(v => v !== 0);
-    const newRow: number[] = [];
-    let i = 0;
-    while (i < row.length) {
-      if (i + 1 < row.length && row[i] === row[i + 1]) {
-        const val = row[i] * 2;
-        newRow.push(val);
-        score += val;
-        merged = true;
-        i += 2;
+  for (let i = 0; i < size; i++) {
+    if (row[i] !== 0) {
+      if (previous === null) {
+        previous = row[i];
       } else {
-        newRow.push(row[i]);
-        i++;
-      }
-    }
-    for (let c = 0; c < newRow.length; c++) {
-      newGrid[r][c] = newRow[c];
-    }
-    // Track merged positions (approximate - mark cells that have doubled values)
-    if (merged) {
-      for (let c = 0; c < newRow.length; c++) {
-        // Check if this position likely had a merge by checking if value doesn't match original
-        if (newRow[c] > 0 && grid[r].includes(newRow[c] / 2)) {
-          mergedPositions.add(`${r}-${c}`);
+        if (previous === row[i]) {
+          // Merge
+          newRow[writePos] = previous * 2;
+          score += previous * 2;
+          merged = true;
+          writePos++;
+          previous = null;
+        } else {
+          // No merge, write previous and start new
+          newRow[writePos] = previous;
+          writePos++;
+          previous = row[i];
         }
       }
     }
   }
 
-  return { grid: newGrid, score, merged, mergedPositions };
+  // Write any remaining tile
+  if (previous !== null) {
+    newRow[writePos] = previous;
+  }
+
+  return { newRow, score, merged };
 }
 
+// Slide entire grid to the left
+function slideGridLeft(grid: Grid): { grid: Grid; score: number; merged: boolean } {
+  let totalScore = 0;
+  let anyMerged = false;
+  const newGrid = grid.map(row => {
+    const result = slideRowLeft(row);
+    totalScore += result.score;
+    if (result.merged) anyMerged = true;
+    return result.newRow;
+  });
+
+  return { grid: newGrid, score: totalScore, merged: anyMerged };
+}
+
+// Move in any direction using rotation strategy
 function move(grid: Grid, direction: Direction): { grid: Grid; score: number; moved: boolean; merged: boolean } {
   let rotated = grid;
-  const rotations: Record<Direction, number> = { left: 0, up: 1, right: 2, down: 3 };
-  const times = rotations[direction];
+  
+  // Rotate to make the desired direction become "left"
+  // left: 0 rotations
+  // up: rotate clockwise 1 time
+  // right: rotate clockwise 2 times
+  // down: rotate clockwise 3 times
+  const rotationsNeeded: Record<Direction, number> = {
+    left: 0,
+    up: 1,
+    right: 2,
+    down: 3
+  };
+  
+  const times = rotationsNeeded[direction];
+  
+  // Rotate clockwise
+  for (let i = 0; i < times; i++) {
+    rotated = rotateClockwise(rotated);
+  }
 
-  for (let i = 0; i < times; i++) rotated = rotateGrid(rotated);
-
-  const result = slideLeft(rotated);
+  // Slide left
+  const result = slideGridLeft(rotated);
   let finalGrid = result.grid;
 
-  const reverseRotations = (4 - times) % 4;
-  for (let i = 0; i < reverseRotations; i++) finalGrid = rotateGrid(finalGrid);
+  // Rotate back counter-clockwise
+  for (let i = 0; i < times; i++) {
+    finalGrid = rotateCounterClockwise(finalGrid);
+  }
 
+  // Check if anything moved
   const moved = JSON.stringify(finalGrid) !== JSON.stringify(grid);
 
   return { grid: finalGrid, score: result.score, moved, merged: result.merged };
@@ -110,11 +156,20 @@ function move(grid: Grid, direction: Direction): { grid: Grid; score: number; mo
 
 function canMove(grid: Grid): boolean {
   const size = grid.length;
+  // Check for empty cells
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
       if (grid[r][c] === 0) return true;
-      if (c + 1 < size && grid[r][c] === grid[r][c + 1]) return true;
-      if (r + 1 < size && grid[r][c] === grid[r + 1][c]) return true;
+    }
+  }
+  // Check for possible merges
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const val = grid[r][c];
+      // Check right neighbor
+      if (c + 1 < size && grid[r][c + 1] === val) return true;
+      // Check bottom neighbor
+      if (r + 1 < size && grid[r + 1][c] === val) return true;
     }
   }
   return false;
