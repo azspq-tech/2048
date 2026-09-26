@@ -5,7 +5,6 @@ import { useSwipe } from './hooks/useSwipe';
 import { Board } from './components/Board';
 import { Header } from './components/Header';
 import { StatusBanner } from './components/StatusBanner';
-import { ComboIndicator } from './components/ComboIndicator';
 
 export default function App() {
   const game = useGame(4);
@@ -69,14 +68,12 @@ export default function App() {
           gridSize={game.gridSize}
           status={game.status}
           soundEnabled={soundEnabled}
+          combo={game.combo}
           onSetGridSize={game.setGridSize}
           onRestart={handleRestart}
           onTogglePause={game.togglePause}
           onToggleSound={handleToggleSound}
         />
-
-        {/* Combo indicator */}
-        <ComboIndicator combo={game.combo} />
 
         {/* Game area with overlay */}
         <div className="relative w-full">
