@@ -75,12 +75,12 @@ export default function App() {
           onToggleSound={handleToggleSound}
         />
 
-        {/* Game area - Board (fixed) + Combo Badge (right side) */}
-        <div className="w-full flex gap-3 items-stretch">
-          {/* Board container - fixed size, never moves */}
-          <div className="flex-1 relative">
+        {/* Game area - Fixed size containers to prevent layout shift */}
+        <div className="w-full flex gap-3">
+          {/* Board container - Fixed size, never changes */}
+          <div className="relative flex-1 aspect-square">
             <div
-              className="w-full select-none"
+              className="w-full h-full select-none"
               onTouchStart={onTouchStart}
               onTouchEnd={onTouchEnd}
             >
@@ -103,8 +103,8 @@ export default function App() {
             )}
           </div>
 
-          {/* Combo Badge - right side, always rendered to prevent layout shift */}
-          <div className="w-24 shrink-0">
+          {/* Combo Badge - Fixed aspect ratio container, always reserved */}
+          <div className="aspect-square" style={{ width: '96px' }}>
             <ComboBadge combo={game.combo} />
           </div>
         </div>
