@@ -6,7 +6,6 @@ interface HeaderProps {
   gridSize: number;
   status: GameStatus;
   soundEnabled: boolean;
-  combo: number;
   onSetGridSize: (size: number) => void;
   onRestart: () => void;
   onTogglePause: () => void;
@@ -19,14 +18,11 @@ export function Header({
   gridSize,
   status,
   soundEnabled,
-  combo,
   onSetGridSize,
   onRestart,
   onTogglePause,
   onToggleSound,
 }: HeaderProps) {
-  const comboActive = combo >= 2;
-
   return (
     <header className="w-full max-w-[450px] mx-auto space-y-3">
       {/* Title and Logo */}
@@ -103,46 +99,23 @@ export function Header({
         </div>
       </div>
 
-      {/* Grid Selector + Combo Badge Row */}
-      <div className="flex items-center justify-between gap-2">
-        {/* Left: Grid controls */}
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">Grid:</span>
-          <div className="flex gap-1">
-            {[3, 4, 5].map(size => (
-              <button
-                key={size}
-                onClick={() => onSetGridSize(size)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 ${
-                  gridSize === size
-                    ? 'bg-violet-500 text-white shadow-lg shadow-violet-500/30'
-                    : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600/80 border border-slate-600/50'
-                }`}
-              >
-                {size}×{size}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Right: Combo Badge - always rendered, uses opacity to prevent layout shift */}
-        <div
-          className={`
-            flex items-center gap-1.5 px-3 py-1.5 rounded-full
-            bg-slate-800/80 backdrop-blur-sm
-            border border-amber-500/30
-            transition-all duration-300 ease-out
-            ${comboActive
-              ? 'opacity-100 scale-100'
-              : 'opacity-0 scale-95 pointer-events-none'
-            }
-          `}
-          aria-hidden={!comboActive}
-        >
-          <span className="text-sm leading-none">🔥</span>
-          <span className="text-amber-300 font-bold text-xs tabular-nums whitespace-nowrap">
-            {combo}× Combo!
-          </span>
+      {/* Grid Selector Row */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">Grid:</span>
+        <div className="flex gap-1">
+          {[3, 4, 5].map(size => (
+            <button
+              key={size}
+              onClick={() => onSetGridSize(size)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 ${
+                gridSize === size
+                  ? 'bg-violet-500 text-white shadow-lg shadow-violet-500/30'
+                  : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600/80 border border-slate-600/50'
+              }`}
+            >
+              {size}×{size}
+            </button>
+          ))}
         </div>
       </div>
     </header>

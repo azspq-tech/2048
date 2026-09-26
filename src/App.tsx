@@ -5,6 +5,7 @@ import { useSwipe } from './hooks/useSwipe';
 import { Board } from './components/Board';
 import { Header } from './components/Header';
 import { StatusBanner } from './components/StatusBanner';
+import { ComboBadge } from './components/ComboBadge';
 
 export default function App() {
   const game = useGame(4);
@@ -61,44 +62,51 @@ export default function App() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl" />
       </div>
 
-      <div className="relative z-10 w-full max-w-[500px] flex flex-col items-center gap-3 md:gap-4">
+      <div className="relative z-10 w-full max-w-[600px] flex flex-col items-center gap-3 md:gap-4">
         <Header
           score={game.score}
           highScore={game.highScore}
           gridSize={game.gridSize}
           status={game.status}
           soundEnabled={soundEnabled}
-          combo={game.combo}
           onSetGridSize={game.setGridSize}
           onRestart={handleRestart}
           onTogglePause={game.togglePause}
           onToggleSound={handleToggleSound}
         />
 
-        {/* Game area - fixed, non-movable board */}
-        <div className="relative w-full max-w-[450px] mx-auto">
-          <div
-            className="w-full select-none"
-            onTouchStart={onTouchStart}
-            onTouchEnd={onTouchEnd}
-          >
-            <Board
-              grid={game.grid}
-              tiles={game.tiles}
-              gridSize={game.gridSize}
-            />
+        {/* Game area - Board (fixed) + Combo Badge (right side) */}
+        <div className="w-full flex gap-3 items-stretch">
+          {/* Board container - fixed size, never moves */}
+          <div className="flex-1 relative">
+            <div
+              className="w-full select-none"
+              onTouchStart={onTouchStart}
+              onTouchEnd={onTouchEnd}
+            >
+              <Board
+                grid={game.grid}
+                tiles={game.tiles}
+                gridSize={game.gridSize}
+              />
+            </div>
+
+            {/* Overlay for game states */}
+            {isOverlay && (
+              <StatusBanner
+                status={game.status}
+                combo={game.combo}
+                targetValue={game.targetValue}
+                onContinue={game.continueAfterWin}
+                onRestart={handleRestart}
+              />
+            )}
           </div>
 
-          {/* Overlay for game states */}
-          {isOverlay && (
-            <StatusBanner
-              status={game.status}
-              combo={game.combo}
-              targetValue={game.targetValue}
-              onContinue={game.continueAfterWin}
-              onRestart={handleRestart}
-            />
-          )}
+          {/* Combo Badge - right side, always rendered to prevent layout shift */}
+          <div className="w-24 shrink-0">
+            <ComboBadge combo={game.combo} />
+          </div>
         </div>
 
         {/* Instructions */}
