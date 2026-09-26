@@ -5,7 +5,6 @@ import { useSwipe } from './hooks/useSwipe';
 import { Board } from './components/Board';
 import { Header } from './components/Header';
 import { StatusBanner } from './components/StatusBanner';
-import { ComboBadge } from './components/ComboBadge';
 
 export default function App() {
   const game = useGame(4);
@@ -69,16 +68,16 @@ export default function App() {
           gridSize={game.gridSize}
           status={game.status}
           soundEnabled={soundEnabled}
+          combo={game.combo}
           onSetGridSize={game.setGridSize}
           onRestart={handleRestart}
           onTogglePause={game.togglePause}
           onToggleSound={handleToggleSound}
         />
 
-        {/* Game area - Fixed size containers to prevent layout shift */}
-        <div className="w-full flex gap-3">
-          {/* Board container - Fixed size, never changes */}
-          <div className="relative flex-1 aspect-square">
+        {/* Game area - Fixed size container */}
+        <div className="w-full max-w-[450px] mx-auto">
+          <div className="relative aspect-square">
             <div
               className="w-full h-full select-none"
               onTouchStart={onTouchStart}
@@ -101,11 +100,6 @@ export default function App() {
                 onRestart={handleRestart}
               />
             )}
-          </div>
-
-          {/* Combo Badge - Fixed aspect ratio container, always reserved */}
-          <div className="aspect-square" style={{ width: '96px' }}>
-            <ComboBadge combo={game.combo} />
           </div>
         </div>
 
